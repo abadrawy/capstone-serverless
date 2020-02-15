@@ -1,5 +1,5 @@
 service:
-  name: serverless-todo-app
+  name: watchList-app
 
 plugins:
   - serverless-webpack
@@ -13,148 +13,156 @@ provider:
 
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-east-1'}
+
+  tracing:
+    lambda: true
+    apiGateway: true
+
   environment:
-    TODOS_TABLE: Todos-${self:provider.stage}
+    WATCHLIST_TABLE: WatchList-${self:provider.stage}
     USER_ID_INDEX: UserIdIndex
-    TODOS_S3_BUCKET: todos-attachment-bucket-${self:provider.stage}
+    WATCHLIST_S3_BUCKET: watchlist-attachment-bucket-${self:provider.stage}
     SIGNED_URL_EXPIRATION: 3000
 
-  # iamRoleStatements:
-   
-  #   - Effect: Allow
-  #     Action:
-  #       - dynamodb:PutItem
-  #       - dynamodb:GetItem
-  #       - dynamodb:Query
-  #       - dynamodb:UpdateItem
-  #     Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
-  #   - Effect: Allow
-  #     Action:
-  #       - dynamodb:Query
-  #     Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/${self:provider.environment.USER_ID_INDEX}
-  #   - Effect: Allow
-  #     Action:
-  #       - s3:PutObject
-  #       - s3:GetObject
-  #     Resource: arn:aws:s3:::${self:provider.environment.TODOS_S3_BUCKET}/*
+iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - "xray:PutTraceSegments"
+        - "xray:PutTelemetryRecords"
+      Resource:
+        - "*"
+  
 custom:
   documentation:
     api:
       info:
         version: v1.0.0
-        title: Todos API
-        description: Serverless application for Todos
+        title: WatchList API
+        description: Serverless application for WatchList
     models:
-      - name: CreateTodoRequest
+      - name: CreateWatchListItemRequest
         contentType: "application/json"
         schema:
           required:
             - name
-            - dueDate
           properties:
             name:
               type: string
-            dueDate:
-              type: string
-      - name: UpdateTodoRequest
+        
+      - name: UpdateWatchListItemRequest
         contentType: "application/json"
         schema:
           required:
             - name
-            - dueDate
-            - done
           properties:
             name:
               type: string
-            dueDate:
-              type: string
-            done:
-              type: boolean
+           
 
 functions:
 
   Auth:
     handler: src/lambda/auth/auth0Authorizer.handler
 
-  # TODO: Configure this function
-  GetTodos:
-    handler: src/lambda/http/getTodos.handler
+  GetWatchList:
+    handler: src/lambda/http/getWatchList.handler
     events:
       - http:
           method: get
-          path: todos
+          path: watchList
           cors: true
           authorizer: Auth
     iamRoleStatements:
       - Effect: Allow
         Action:
           - dynamodb:Query
-        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}/index/${self:provider.environment.USER_ID_INDEX}
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.WATCHLIST_TABLE}/index/${self:provider.environment.USER_ID_INDEX}
+      - Effect: Allow
+        Action:
+          - "xray:PutTraceSegments"
+          - "xray:PutTelemetryRecords"
+        Resource:
+          - "*"
 
 
-  # TODO: Configure this function
-  CreateTodo:
-    handler: src/lambda/http/createTodo.handler
+  CreateWatchListItem:
+    handler: src/lambda/http/createWatchListItem.handler
     events:
       - http:
           method: post
-          path: todos
+          path: watchList
           cors: true
           authorizer: Auth
           reqValidatorName: RequestBodyValidator
           documentation:
-            summary: Create a new todo
-            description: Create a new todo
+            summary: Create a new item in watchList
+            description: Create a new item in watchList
             requestModels:
-              'application/json': CreateTodoRequest
+              'application/json': CreateWatchListItemRequest
     iamRoleStatements:
       - Effect: Allow
         Action:
           - dynamodb:PutItem
-        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
-  # TODO: Configure this function
-  UpdateTodo:
-    handler: src/lambda/http/updateTodo.handler
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.WATCHLIST_TABLE}
+      - Effect: Allow
+        Action:
+          - "xray:PutTraceSegments"
+          - "xray:PutTelemetryRecords"
+        Resource:
+          - "*"
+
+  UpdateWatchListItem:
+    handler: src/lambda/http/updateWatchListItem.handler
     events:
       - http:
           method: patch
-          path: todos/{todoId}
+          path: watchList/{itemId}
           cors: true
           authorizer: Auth
           reqValidatorName: RequestBodyValidator
           documentation:
-            summary: Update an existing todo
-            description: Update an existing todo
+            summary: Update an existing item in watchList
+            description: Update an existing item in watchList
             requestModels:
-              'application/json': UpdateTodoRequest
+              'application/json': UpdateWatchListItemRequest
     iamRoleStatements:
       - Effect: Allow
         Action:
           - dynamodb:UpdateItem
-        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.WATCHLIST_TABLE}
+      - Effect: Allow
+        Action:
+          - "xray:PutTraceSegments"
+          - "xray:PutTelemetryRecords"
+        Resource:
+          - "*"
 
-  # TODO: Configure this function
-  DeleteTodo:
-    handler: src/lambda/http/deleteTodo.handler
+  DeleteWatchListItem:
+    handler: src/lambda/http/deleteWatchListItem.handler
     events:
       - http:
           method: delete
-          path: todos/{todoId}
+          path: watchList/{itemId}
           cors: true
           authorizer: Auth
     iamRoleStatements:
       - Effect: Allow
         Action:
           - dynamodb:DeleteItem
-        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+        Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.WATCHLIST_TABLE}
+      - Effect: Allow
+        Action:
+          - "xray:PutTraceSegments"
+          - "xray:PutTelemetryRecords"
+        Resource:
+          - "*"
 
-  # TODO: Configure this function
   GenerateUploadUrl:
     handler: src/lambda/http/generateUploadUrl.handler
     events:
       - http:
           method: post
-          path: todos/{todoId}/attachment
+          path: watchList/{itemId}/attachment
           cors: true
           authorizer: Auth
     iamRoleStatements:
@@ -162,18 +170,24 @@ functions:
          Action:
           - dynamodb:GetItem
           - dynamodb:UpdateItem
-         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.TODOS_TABLE}
+         Resource: arn:aws:dynamodb:${self:provider.region}:*:table/${self:provider.environment.WATCHLIST_TABLE}
        - Effect: Allow
          Action:
           - s3:PutObject
           - s3:GetObject
-         Resource: arn:aws:s3:::${self:provider.environment.TODOS_S3_BUCKET}/*
+         Resource: arn:aws:s3:::${self:provider.environment.WATCHLIST_S3_BUCKET}/*
+       - Effect: Allow
+         Action:
+          - "xray:PutTraceSegments"
+          - "xray:PutTelemetryRecords"
+         Resource:
+          - "*"
+
 
 resources:
   Resources:
-    # TODO: Add any necessary AWS resources
 
-    TodosDynamoDBTable:
+    WatchListDynamoDBTable:
       Type: "AWS::DynamoDB::Table"
       Properties:
         AttributeDefinitions:
@@ -181,15 +195,15 @@ resources:
             AttributeType: S
           - AttributeName: createdAt
             AttributeType: S
-          - AttributeName: todoId
+          - AttributeName: itemId
             AttributeType: S
         KeySchema:
           - AttributeName: userId
             KeyType: HASH
-          - AttributeName: todoId
+          - AttributeName: itemId
             KeyType: RANGE
         BillingMode: PAY_PER_REQUEST
-        TableName: ${self:provider.environment.TODOS_TABLE}
+        TableName: ${self:provider.environment.WATCHLIST_TABLE}
         GlobalSecondaryIndexes:
           - IndexName: ${self:provider.environment.USER_ID_INDEX}
             KeySchema:
@@ -200,10 +214,10 @@ resources:
             Projection:
               ProjectionType: ALL
 
-    TodosBucket:
+    WatchListBucket:
       Type: AWS::S3::Bucket
       Properties:
-        BucketName: ${self:provider.environment.TODOS_S3_BUCKET}
+        BucketName: ${self:provider.environment.WATCHLIST_S3_BUCKET}
         CorsConfiguration:
           CorsRules:
             -
@@ -230,8 +244,8 @@ resources:
               Effect: Allow
               Principal: '*'
               Action: 's3:GetObject'
-              Resource: 'arn:aws:s3:::${self:provider.environment.TODOS_S3_BUCKET}/*'
-        Bucket: !Ref TodosBucket
+              Resource: 'arn:aws:s3:::${self:provider.environment.WATCHLIST_S3_BUCKET}/*'
+        Bucket: !Ref WatchListBucket
 
 
     RequestBodyValidator:

@@ -1,9 +1,7 @@
-export interface TodoItem {
+export interface WatchListItem {
   userId: string
-  todoId: string
+  itemId: string
   createdAt: string
   name: string
-  dueDate: string
-  done: boolean
   attachmentUrl?: string
 }

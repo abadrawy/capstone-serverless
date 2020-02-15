@@ -2,19 +2,21 @@ import 'source-map-support/register'
 
 import { APIGatewayProxyEvent, APIGatewayProxyHandler, APIGatewayProxyResult } from 'aws-lambda'
 
-import { CreateTodoRequest } from '../../requests/CreateTodoRequest'
-import { createTodo } from '../../businessLogic/todos'
+import { CreateWatchListItemRequest } from '../../requests/CreateWatchListItemRequest'
+import { createWatchListItem } from '../../businessLogic/watchList'
+import { createLogger } from '../../utils/logger'
+const logger = createLogger('auth')
 
 
 export const handler: APIGatewayProxyHandler = async (event: APIGatewayProxyEvent): Promise<APIGatewayProxyResult> => {
-  console.log('Processing event: ', event)
+  logger.info('Processing createWatchListItem event: ', event)
 
-  const todoReq: CreateTodoRequest = JSON.parse(event.body)
+  const itemReq: CreateWatchListItemRequest = JSON.parse(event.body)
   const authorization = event.headers.Authorization
   const split = authorization.split(' ')
   const jwtToken = split[1]
 
-  const item = await createTodo(todoReq, jwtToken)
+  const item = await createWatchListItem(itemReq, jwtToken)
   
   return {
     statusCode: 201,

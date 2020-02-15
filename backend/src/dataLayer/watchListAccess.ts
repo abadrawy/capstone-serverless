@@ -5,17 +5,20 @@ import { DocumentClient } from 'aws-sdk/clients/dynamodb'
 const XAWS = AWSXRay.captureAWS(AWS)
 
 
-import { TodoItem } from '../models/TodoItem'
-import { TodoUpdate } from '../models/TodoUpdate'
+import { WatchListItem } from '../models/WatchListItem'
+import { WatchListItemUpdate } from '../models/WatchListItemUpdate'
+import { createLogger } from '../utils/logger'
+const logger = createLogger('auth')
 
 
-export class TodoAccess {
+
+export class WatchListAccess {
 
   constructor(
     private readonly docClient: DocumentClient = createDynamoDBClient(),
-    private readonly todosTable = process.env.TODOS_TABLE ,
+    private readonly watchListTable = process.env.WATCHLIST_TABLE ,
     private readonly userIndex = process.env.USER_ID_INDEX,
-    private readonly bucketName = process.env.TODOS_S3_BUCKET,
+    private readonly bucketName = process.env.WATCHLIST_S3_BUCKET,
     private readonly urlExpiration = process.env.SIGNED_URL_EXPIRATION,
     private readonly s3 = new AWS.S3({
     signatureVersion: 'v4'
@@ -23,11 +26,11 @@ export class TodoAccess {
 
     ) {}
 
-  async getTodos(userId: string): Promise<TodoItem[]> {
-    console.log('Getting all todos')
+  async getWatchList(userId: string): Promise<WatchListItem[]> {
+    logger.info('Getting all items in watchList')
 
     const result = await this.docClient.query({
-       TableName : this.todosTable,
+       TableName : this.watchListTable,
        IndexName : this.userIndex,
        KeyConditionExpression: 'userId = :userId',
        ExpressionAttributeValues: {
@@ -36,33 +39,36 @@ export class TodoAccess {
     }).promise()
 
     const items = result.Items
-    return items as TodoItem[]
+    return items as WatchListItem[]
   }
 
-  async deleteTodo(userId: string,todoId: string){
+  async deleteWatchListItem(userId: string,itemId: string){
     const deleted = await this.docClient.delete({
-        TableName: this.todosTable,
+        TableName: this.watchListTable,
         Key: {
           userId,
-          todoId
+          itemId
         }
       }).promise();
+
 
      return deleted;
 
   }
-  async generateUploadUrl(userId: string,todoId:string){
-    const validTodoId = await this.todoExists(userId,todoId)
-  if (!validTodoId) {
+  async generateUploadUrl(userId: string,itemId:string){
+    const validItemId = await this.itemExists(userId,itemId)
+  if (!validItemId) {
     return {
       statusCode: 404,
       headers: {
         'Access-Control-Allow-Origin': '*'
       },
       body: JSON.stringify({
-        error: 'Todo does not exist'
+        error: 'Item does not exist'
       })
     }
+    logger.info('could not generate url, item does not exist')
+
   }
 
   
@@ -70,16 +76,16 @@ export class TodoAccess {
 
    const uploadUrl= this.s3.getSignedUrl('putObject', {
     Bucket: this.bucketName,
-    Key: todoId,
+    Key: itemId,
     Expires: this.urlExpiration
   })
 
    await this.docClient.update({
-        TableName: this.todosTable,
-        Key: { userId, todoId },
+        TableName: this.watchListTable,
+        Key: { userId, itemId },
         UpdateExpression: 'set attachmentUrl = :attachmentUrl',
         ExpressionAttributeValues: {
-          ":attachmentUrl":`https://${this.bucketName}.s3.amazonaws.com/${todoId}`
+          ":attachmentUrl":`https://${this.bucketName}.s3.amazonaws.com/${itemId}`
         },
       }).promise();
 
@@ -87,53 +93,51 @@ export class TodoAccess {
   }
 
 
-async  todoExists(userId: string,todoId: string) {
+async  itemExists(userId: string,itemId: string) {
   const result = await this.docClient
     .get({
-      TableName: this.todosTable,
+      TableName: this.watchListTable,
       Key: {
         userId,
-        todoId
+        itemId
 
       }
     })
     .promise()
 
-  console.log('Get todo: ', result)
+  logger.info('Get Item: ', result)
   return !!result.Item
 }
 
-  async updateTodo(userId:string,updatedTodo: TodoUpdate, todoId:string){
-    const newUpdatedTodo = await this.docClient.update({
-        TableName: this.todosTable,
-        Key: { userId, todoId },
-        UpdateExpression: 'set todoName = :name, dueDate = :date, done = :done',
+  async updateWatchListItem(userId:string,updatedItem: WatchListItemUpdate, itemId:string){
+    const newUpdatedItem = await this.docClient.update({
+        TableName: this.watchListTable,
+        Key: { userId, itemId },
+        UpdateExpression: 'set itemName = :name',
         ExpressionAttributeValues: {
-          ':name':updatedTodo.name,
-          ':date':updatedTodo.dueDate,
-          ':done':updatedTodo.done
+          ':name':updatedItem.name
         },
         ReturnValues: "ALL_NEW"
       }).promise();
 
-    return newUpdatedTodo
+    return newUpdatedItem
   }
 
-  async createTodo(todo: TodoItem): Promise<TodoItem> {
+  async createWatchListItem(item: WatchListItem): Promise<WatchListItem> {
     
     await this.docClient.put({
-        TableName: this.todosTable,
-        Item: todo
+        TableName: this.watchListTable,
+        Item: item
       }).promise()
     
-      return todo;
+      return item;
 
     }
   }
 
 function createDynamoDBClient() {
   if (process.env.IS_OFFLINE) {
-    console.log('Creating a local DynamoDB instance')
+    logger.info('Creating a local DynamoDB instance')
     return new XAWS.DynamoDB.DocumentClient({
       region: 'localhost',
       endpoint: 'http://localhost:8000'
